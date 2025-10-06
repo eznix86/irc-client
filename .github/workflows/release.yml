@@ -22,78 +22,38 @@ jobs:
         with:
           go-version: '1.25'
 
-      - name: Determine version
+      - name: Get version from tag
         id: version
         run: |
-          # Get the latest tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $LATEST_TAG"
-
-          # Get commit messages since last tag
-          COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s")
-
-          # Parse version
-          VERSION=${LATEST_TAG#v}
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-
-          # Determine bump type based on conventional commits
-          if echo "$COMMITS" | grep -qiE "^(feat|feature)(\(.*\))?!:|^BREAKING CHANGE:"; then
-            # Breaking change -> major bump
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
-            PATCH=0
-          elif echo "$COMMITS" | grep -qiE "^(feat|feature)(\(.*\))?:"; then
-            # New feature -> minor bump
-            MINOR=$((MINOR + 1))
-            PATCH=0
-          elif echo "$COMMITS" | grep -qiE "^(fix|bugfix|perf|refactor)(\(.*\))?:"; then
-            # Fix/improvement -> patch bump
-            PATCH=$((PATCH + 1))
-          else
-            # No conventional commit found -> patch bump
-            PATCH=$((PATCH + 1))
-          fi
-
-          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "New version: $NEW_VERSION"
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "version_number=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
-
-      - name: Check if version changed
-        id: check
-        run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          if [ "${{ steps.version.outputs.version }}" == "$LATEST_TAG" ]; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-          fi
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION_NUMBER=${VERSION#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
 
       - name: Build binaries
-        if: steps.check.outputs.changed == 'true'
         run: |
           VERSION=${{ steps.version.outputs.version_number }}
 
-          # Linux AMD64
-          GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o irc-client-linux-amd64
+          # Linux x86_64
+          GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o irc-client-Linux-x86_64
 
-          # Linux ARM64
-          GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o irc-client-linux-arm64
+          # Linux aarch64
+          GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o irc-client-Linux-aarch64
 
-          # macOS AMD64
-          GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o irc-client-macos-amd64
+          # Darwin x86_64
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o irc-client-Darwin-x86_64
 
-          # macOS ARM64
-          GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o irc-client-macos-arm64
+          # Darwin arm64
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o irc-client-Darwin-arm64
 
           # Create checksums
           sha256sum irc-client-* > checksums.txt
 
       - name: Generate release notes
-        if: steps.check.outputs.changed == 'true'
         id: notes
         run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          LATEST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -z "$LATEST_TAG" ]; then
             COMMITS=$(git log --pretty=format:"- %s (%h)" --reverse)
           else
@@ -109,36 +69,42 @@ jobs:
 
           Download the appropriate binary for your platform:
 
-          - **Linux AMD64**: \`irc-client-linux-amd64\`
-          - **Linux ARM64**: \`irc-client-linux-arm64\`
-          - **macOS AMD64**: \`irc-client-macos-amd64\`
-          - **macOS ARM64**: \`irc-client-macos-arm64\`
-
-          Make it executable:
           \`\`\`sh
-          chmod +x irc-client-*
+          # Detect your platform
+          OS=\$(uname -s)
+          ARCH=\$(uname -m)
+
+          # Download
+          wget https://github.com/\${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/irc-client-\${OS}-\${ARCH}
+
+          # Make executable
+          chmod +x irc-client-\${OS}-\${ARCH}
+          mv irc-client-\${OS}-\${ARCH} irc-client
+
+          # Run
+          ./irc-client irc.libera.chat/6697 yournickname
           \`\`\`
 
-          Run:
-          \`\`\`sh
-          ./irc-client-* irc.libera.chat/6697 yournickname
-          \`\`\`
+          ### Available binaries:
+          - \`irc-client-Linux-x86_64\` - Linux AMD64
+          - \`irc-client-Linux-aarch64\` - Linux ARM64
+          - \`irc-client-Darwin-x86_64\` - macOS Intel
+          - \`irc-client-Darwin-arm64\` - macOS Apple Silicon
           EOF
 
           echo "Release notes generated"
 
       - name: Create Release
-        if: steps.check.outputs.changed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
           body_path: release_notes.md
           files: |
-            irc-client-linux-amd64
-            irc-client-linux-arm64
-            irc-client-macos-amd64
-            irc-client-macos-arm64
+            irc-client-Linux-x86_64
+            irc-client-Linux-aarch64
+            irc-client-Darwin-x86_64
+            irc-client-Darwin-arm64
             checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
