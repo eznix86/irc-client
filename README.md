@@ -8,7 +8,9 @@ A simple, lightweight **terminal-based IRC client** built with Go and Bubble Tea
 
 ## Quick Start
 
-Build and run the IRC client:
+
+
+Download and Run the IRC client:
 
 ```sh
 irc-client irc.libera.chat/6697 myusername
