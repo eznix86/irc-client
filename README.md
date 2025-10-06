@@ -10,7 +10,7 @@ A simple, lightweight **terminal-based IRC client** built with Go and Bubble Tea
 
 
 
-Download and Run the IRC client:
+[Download](https://github.com/eznix86/irc-client/releases) and Run the IRC client:
 
 ```sh
 irc-client irc.libera.chat/6697 myusername
