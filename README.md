@@ -74,6 +74,11 @@ go build -o irc-client .
 - `main.go` - UI, event handling, and IRC event handlers
 - `irc.go` - IRC protocol implementation and connection management
 
+## Hacktoberfest 2025 Contribution
+- Added short note about project goals.
+- This IRC client is a fun lightweight tool for chatting using the IRC protocol.
+Contributed by [Vina Dabydoyal](https://github.com/Vina07)
+
 ### LICENSE
 
 [MIT](LICENSE)
